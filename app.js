@@ -1,61 +1,67 @@
 const express = require("express");
+const { Configuration, OpenAIApi } = require("openai");
+const dotenv = require("dotenv");
+const cors = require("cors");
+
+// Load environment variables from .env file
+dotenv.config();
+
 const app = express();
-const port = process.env.PORT || 3001;
+app.use(express.json());
+app.use(express.static("public")); // Assuming your index.html is in the "public" directory
 
-app.get("/", (req, res) => res.type('html').send(html));
+const configuration = new Configuration({
+  apiKey: process.env.OPENAI_API_KEY,
+});
+const openai = new OpenAIApi(configuration);
 
-const server = app.listen(port, () => console.log(`Example app listening on port ${port}!`));
+const languageMap = {
+  "sv-SE": "Swedish",
+  "en-US": "English",
+  // Add more language codes and their corresponding names as needed
+};
 
-server.keepAliveTimeout = 120 * 1000;
-server.headersTimeout = 120 * 1000;
+app.use(cors({
+  origin: "https://photivo.se/DEV/context/index.html" // Replace YOUR_CLIENT_PORT with the port number of your client application
+}));
 
-const html = `
-<!DOCTYPE html>
-<html>
-  <head>
-    <title>Hello from Render!</title>
-    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.5.1/dist/confetti.browser.min.js"></script>
-    <script>
-      setTimeout(() => {
-        confetti({
-          particleCount: 100,
-          spread: 70,
-          origin: { y: 0.6 },
-          disableForReducedMotion: true
-        });
-      }, 500);
-    </script>
-    <style>
-      @import url("https://p.typekit.net/p.css?s=1&k=vnd5zic&ht=tk&f=39475.39476.39477.39478.39479.39480.39481.39482&a=18673890&app=typekit&e=css");
-      @font-face {
-        font-family: "neo-sans";
-        src: url("https://use.typekit.net/af/00ac0a/00000000000000003b9b2033/27/l?primer=7cdcb44be4a7db8877ffa5c0007b8dd865b3bbc383831fe2ea177f62257a9191&fvd=n7&v=3") format("woff2"), url("https://use.typekit.net/af/00ac0a/00000000000000003b9b2033/27/d?primer=7cdcb44be4a7db8877ffa5c0007b8dd865b3bbc383831fe2ea177f62257a9191&fvd=n7&v=3") format("woff"), url("https://use.typekit.net/af/00ac0a/00000000000000003b9b2033/27/a?primer=7cdcb44be4a7db8877ffa5c0007b8dd865b3bbc383831fe2ea177f62257a9191&fvd=n7&v=3") format("opentype");
-        font-style: normal;
-        font-weight: 700;
-      }
-      html {
-        font-family: neo-sans;
-        font-weight: 700;
-        font-size: calc(62rem / 16);
-      }
-      body {
-        background: white;
-      }
-      section {
-        border-radius: 1em;
-        padding: 1em;
-        position: absolute;
-        top: 50%;
-        left: 50%;
-        margin-right: -50%;
-        transform: translate(-50%, -50%);
-      }
-    </style>
-  </head>
-  <body>
-    <section>
-      Hello from Render!
-    </section>
-  </body>
-</html>
-`
+app.post("/translate", async (req, res) => {
+  try {
+    const { originalLanguage, desiredLanguage, word } = req.body;
+    
+    // Map language codes to language names
+    originalLanguage = languageMap[originalLanguage] || originalLanguage;
+    desiredLanguage = languageMap[desiredLanguage] || desiredLanguage;
+    
+    const prompt = `The word \n\n${word}\n\n is in ${originalLanguage}. Put it in a 4-8 word sentence for context, then translate that sentence into ${desiredLanguage}. Show the sentence in both languages, with ${originalLanguage} first. Separate them with a comma. `;
+
+    const response = await openai.createCompletion({
+      model: "text-davinci-003",
+      prompt: prompt,
+      temperature: 0.3,
+      max_tokens: 100,
+      top_p: 1.0,
+      frequency_penalty: 0.0,
+      presence_penalty: 0.0,
+    });
+
+    const translatedText = response.data.choices[0].text;
+    console.log(translatedText);
+
+    res.json({ translatedText });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Something went wrong" });
+  }
+});
+
+const port = process.env.PORT || 3000;
+app.listen(port, () => {
+  console.log(`Server listening on port ${port}`);
+});
+
+
+
+
+
+//Continue HERE: https://platform.openai.com/examples/default-translate
